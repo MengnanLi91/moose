@@ -70,6 +70,8 @@ public:
    */
   void printDebug(InvalidSolutionID _invalid_solution_id) const;
 
+  void sync();
+
 private:
   /// Mutex for locking access to the invalid counts
   /// NOTE: These can be changed to shared_mutexes once we get C++17

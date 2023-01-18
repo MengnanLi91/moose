@@ -45,8 +45,11 @@ SolutionInvalidity::solutionInvalid() const
   bool is_invalid = false;
   for (auto & entry : _counts)
   {
-    is_invalid = true;
-    break;
+    if (entry.counts)
+    {
+      is_invalid = true;
+      break;
+    }
   }
 
   // unsigned int invalid = is_invalid;
