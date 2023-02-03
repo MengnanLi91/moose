@@ -38,6 +38,7 @@ class SolutionInvalidity : protected ConsoleStreamInterface, public ParallelObje
 public:
   using SolutionInvalidityRegistry = moose::internal::SolutionInvalidityRegistry;
 
+  static InputParameters validParams();
   /**
    * Create a new SolutionInvalidity
    */

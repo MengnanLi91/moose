@@ -17,14 +17,14 @@
 // Forward declarations
 class MooseObject;
 
-#define flagInvalidSolution(message)                                                              \
+#define flagInvalidSolution(message)                                                               \
   do                                                                                               \
   {                                                                                                \
     static const auto __invalid_id = this->registerInvalidSolutionInternal(message);               \
     this->flagInvalidSolutionInternal(__invalid_id);                                               \
   } while (0)
 
-#define flagInvalidSolutionPrefixed(prefix, message)                                                      \
+#define flagInvalidSolutionPrefixed(prefix, message)                                               \
   do                                                                                               \
   {                                                                                                \
     static const auto __invalid_id = this->registerInvalidSolutionInternal(message, prefix);       \
