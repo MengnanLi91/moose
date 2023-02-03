@@ -210,7 +210,7 @@ NonlinearSystem::solve()
   // store info about the solve
   _final_residual = _nl_implicit_sys.final_nonlinear_residual();
 
-  // store the occurence of solution invalid warnings in local comulative counters
+  // store the occurence of solution invalid warnings in local cumulative counters
   _app.solutionInvalidity().solutionInvalidAccumulation();
 
   // determine whether solution invalid occures in the converged solution

@@ -30,6 +30,22 @@ SolutionInvalidity::SolutionInvalidity(MooseApp & app)
 {
 }
 
+InputParameters
+SolutionInvalidity::validParams()
+{
+  InputParameters params = FEProblemBase::validParams();
+  params.addParam<bool>(
+      "allow_invalid_solution",
+      false,
+      "Set to true to allow convergence even though the solution has been marked as 'invalid'");
+
+  params.addParam<bool>("immediately_print_invalid_solution",
+                        false,
+                        "Whether or not to report invalid solution warnings at the time the "
+                        "warning is produced instead of after the calculation");
+  return params;
+}
+
 void
 SolutionInvalidity::flagInvalidSolutionInternal(InvalidSolutionID _invalid_solution_id)
 {
@@ -147,12 +163,12 @@ SolutionInvalidity::printDebug(InvalidSolutionID _invalid_solution_id) const
 SolutionInvalidity::FullTable
 SolutionInvalidity::summaryTable() const
 {
-  FullTable vtable({"Object", "Current", "Timestep", "Total", "Message"}, 4);
+  FullTable vtable({"Object", "Latest", "Timestep", "Total", "Message"}, 4);
 
   vtable.setColumnFormat({
       VariadicTableColumnFormat::AUTO, // Object Type
-      VariadicTableColumnFormat::AUTO, // Current Iteration Warnings
-      VariadicTableColumnFormat::AUTO, // Current Time Iteration Warnings
+      VariadicTableColumnFormat::AUTO, // Latest Iteration Warnings
+      VariadicTableColumnFormat::AUTO, // Latest Time Iteration Warnings
       VariadicTableColumnFormat::AUTO, // Total Iternation Warnings
       VariadicTableColumnFormat::AUTO, // Message
   });
@@ -160,8 +176,8 @@ SolutionInvalidity::summaryTable() const
   vtable.setColumnPrecision({
       1, // Object Name
 
-      0, // Current Iternation Warnings
-      0, // Current Time Iternation Warnings
+      0, // Latest Iternation Warnings
+      0, // Latest Time Iternation Warnings
       0, // Total Iteration Warnings
       1, // Message
   });
@@ -173,8 +189,8 @@ SolutionInvalidity::summaryTable() const
     {
       const auto & info = _solution_invalidity_registry.item(id);
       vtable.addRow(info.object_type,      // Object Type
-                    entry.counts,          // Current Iteration Warnings
-                    entry.timeiter_counts, // Current Time Iteration Warnings
+                    entry.counts,          // Latest Iteration Warnings
+                    entry.timeiter_counts, // Latest Time Iteration Warnings
                     entry.total_counts,    // Total Iternation Warnings
                     info.message           // Message
       );
