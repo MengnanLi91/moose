@@ -17,7 +17,7 @@
 // Forward declarations
 class MooseObject;
 
-#define flagInvalidSolution(message)                                                               \
+#define flagInvalidSolutionMessage(message)                                                        \
   do                                                                                               \
   {                                                                                                \
     static const auto __invalid_id = this->registerInvalidSolutionInternal(message);               \
@@ -34,7 +34,7 @@ class MooseObject;
 // Overloading Macro solution from https://stackoverflow.com/a/11763277
 #define get_mymacro(_1, _2, NAME, ...) NAME
 #define flagInvalidSolution(...)                                                                   \
-  get_mymacro(__VA_ARGS__, flagInvalidSolution2, flagInvalidSolution1)(__VA_ARGS__)
+  get_mymacro(__VA_ARGS__, flagInvalidSolutionPrefixed, flagInvalidSolutionMessage)(__VA_ARGS__)
 
 /**
  * An interface that allows the marking of invalid solutions during a solve

@@ -30,22 +30,6 @@ SolutionInvalidity::SolutionInvalidity(MooseApp & app)
 {
 }
 
-InputParameters
-SolutionInvalidity::validParams()
-{
-  InputParameters params = FEProblemBase::validParams();
-  params.addParam<bool>(
-      "allow_invalid_solution",
-      false,
-      "Set to true to allow convergence even though the solution has been marked as 'invalid'");
-
-  params.addParam<bool>("immediately_print_invalid_solution",
-                        false,
-                        "Whether or not to report invalid solution warnings at the time the "
-                        "warning is produced instead of after the calculation");
-  return params;
-}
-
 void
 SolutionInvalidity::flagInvalidSolutionInternal(InvalidSolutionID _invalid_solution_id)
 {
