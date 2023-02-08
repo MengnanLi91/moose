@@ -195,6 +195,8 @@ NonlinearSystem::solve()
 
   if (_time_integrator)
   {
+    // reset solution invalid counter for time iteration
+    _app.solutionInvalidity().resetSolutionInvalidTimeIter();
     _time_integrator->solve();
     _time_integrator->postSolve();
     _n_iters = _time_integrator->getNumNonlinearIterations();
@@ -229,9 +231,6 @@ NonlinearSystem::solve()
       // output the occurence of solution invalid in a summarry table
       _app.solutionInvalidity().print(_console);
   }
-
-  // reset solution invalid counter for time iteration
-  _app.solutionInvalidity().resetSolutionInvalidTimeIter();
 
   if (_use_coloring_finite_difference)
     MatFDColoringDestroy(&_fdcoloring);

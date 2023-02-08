@@ -17,24 +17,12 @@
 // Forward declarations
 class MooseObject;
 
-#define flagInvalidSolutionMessage(message)                                                        \
+#define flagInvalidSolution(message)                                                               \
   do                                                                                               \
   {                                                                                                \
     static const auto __invalid_id = this->registerInvalidSolutionInternal(message);               \
     this->flagInvalidSolutionInternal(__invalid_id);                                               \
   } while (0)
-
-#define flagInvalidSolutionPrefixed(prefix, message)                                               \
-  do                                                                                               \
-  {                                                                                                \
-    static const auto __invalid_id = this->registerInvalidSolutionInternal(message, prefix);       \
-    this->flagInvalidSolutionInternal(__invalid_id);                                               \
-  } while (0)
-
-// Overloading Macro solution from https://stackoverflow.com/a/11763277
-#define get_mymacro(_1, _2, NAME, ...) NAME
-#define flagInvalidSolution(...)                                                                   \
-  get_mymacro(__VA_ARGS__, flagInvalidSolutionPrefixed, flagInvalidSolutionMessage)(__VA_ARGS__)
 
 /**
  * An interface that allows the marking of invalid solutions during a solve
@@ -49,10 +37,6 @@ protected:
 
   // Register invalid solution with a message
   InvalidSolutionID registerInvalidSolutionInternal(const std::string & message) const;
-
-  // Register invalid solution with a message and prefix
-  InvalidSolutionID registerInvalidSolutionInternal(const std::string & message,
-                                                    const std::string & prefix) const;
 
 private:
   /// The MooseObject that owns this interface
