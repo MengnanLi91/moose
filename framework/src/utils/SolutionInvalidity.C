@@ -150,11 +150,11 @@ SolutionInvalidity::printDebug(InvalidSolutionID _invalid_solution_id) const
 SolutionInvalidity::FullTable
 SolutionInvalidity::summaryTable() const
 {
-  FullTable vtable({"Object", "Latest", "Timestep", "Total", "Message"}, 4);
+  FullTable vtable({"Object", "Converged", "Timestep", "Total", "Message"}, 4);
 
   vtable.setColumnFormat({
       VariadicTableColumnFormat::AUTO, // Object Type
-      VariadicTableColumnFormat::AUTO, // Latest Iteration Warnings
+      VariadicTableColumnFormat::AUTO, // Converged Iteration Warnings
       VariadicTableColumnFormat::AUTO, // Latest Time Iteration Warnings
       VariadicTableColumnFormat::AUTO, // Total Iternation Warnings
       VariadicTableColumnFormat::AUTO, // Message
@@ -163,7 +163,7 @@ SolutionInvalidity::summaryTable() const
   vtable.setColumnPrecision({
       1, // Object Name
 
-      0, // Latest Iternation Warnings
+      0, // Converged Iternation Warnings
       0, // Latest Time Iternation Warnings
       0, // Total Iteration Warnings
       1, // Message
@@ -176,7 +176,7 @@ SolutionInvalidity::summaryTable() const
     {
       const auto & info = _solution_invalidity_registry.item(id);
       vtable.addRow(info.object_type,      // Object Type
-                    entry.counts,          // Latest Iteration Warnings
+                    entry.counts,          // Converged Iteration Warnings
                     entry.timeiter_counts, // Latest Time Iteration Warnings
                     entry.total_counts,    // Total Iternation Warnings
                     info.message           // Message
