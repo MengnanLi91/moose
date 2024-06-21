@@ -538,7 +538,8 @@ perm = 2.0e-13
   type = Transient
   solve_type = Newton
   end_time = ${time}
-
+  nl_rel_tol = 1E-8
+  nl_abs_tol = 1e-12
   [TimeStepper]
     type = IterationAdaptiveDT
     optimal_iterations = 50
