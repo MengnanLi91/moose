@@ -90,8 +90,8 @@ WCNSFV2PMomentumDriftFlux::computeStrongResidual(const bool populate_a_coeffs)
   else
     Moose::FV::interpolate(_density_interp_method,
                            face_rho_fd,
-                           _rho_d(elemArg(), state) * _f_d(elemArg(), state),
-                           _rho_d(neighborArg(), state) * _f_d(neighborArg(), state),
+                           _rho_d(elemArg(), state) * _f_d(elemArg(), Moose ::oldState()),
+                           _rho_d(neighborArg(), state) * _f_d(neighborArg(), Moose ::oldState()),
                            *_face_info,
                            true);
 
