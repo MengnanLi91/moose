@@ -22,7 +22,7 @@ Optionally, the user may specify to return the absolute value of the change.
 
 The following example demonstrates how this post-processor is used:
 
-!listing test/tests/postprocessors/change_over_time/change_over_time.i
+!listing test/tests/postprocessors/change_over_time/change_over_fixed_point.i
 block=Postprocessors
 
 !syntax parameters /Postprocessors/ChangeOverFixedPointPostprocessor
