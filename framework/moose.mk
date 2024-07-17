@@ -23,6 +23,21 @@ moose_SRC_DIRS += $(FRAMEWORK_DIR)/contrib/minijson/src/minijson
 moose_SRC_DIRS += $(FRAMEWORK_DIR)/contrib/tinyhttp/src/tinyhttp
 
 #
+# libCEED
+#
+OPT ?= -O -g
+
+# Ceed directory
+CEED_DIR ?= $(FRAMEWORK_DIR)/contrib/libceed
+CEED_FLAGS ?= -I$(CEED_DIR)/include $(OPT)
+
+# Dynamically linking with the available Ceed library
+libmesh_LDFLAGS += -Wl,-rpath,$(CEED_DIR)/lib
+libmesh_LDFLAGS += -L$(CEED_DIR)/lib -lceed
+libmesh_CXXFLAGS  += $(CEED_FLAGS)
+
+
+#
 # pcre
 #
 pcre_DIR       := $(FRAMEWORK_DIR)/contrib/pcre
