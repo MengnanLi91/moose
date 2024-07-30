@@ -1,8 +1,8 @@
 # Hibiki (2001)
 # flow regime
-# void fraction          0.045    0.085     0.15
-# mixture velocity(m/s)  0.61     0.63      0.77
-# particle diameter(m)   0.0025   0.0026    0.003
+# void fraction          0.049     0.092     0.192
+# mixture velocity(m/s)  0.56      0.58      0.57
+# particle diameter(m)   0.00096   0.00115    0.001
 
 mu = 1.002e-3
 rho = 998.19
@@ -10,9 +10,9 @@ mu_d = 1.825e-5
 rho_d = 1.204
 pipe_diameter = 0.0508 # m
 length = 2.7178 # m
-U = 0.77 # m/s
-dp = 0.003
-inlet_phase_2 =  0.15
+U =  0.58  # m/s
+dp = 0.0012
+inlet_phase_2 = 0.092
 g = 9.81
 advected_interp_method = 'upwind'
 velocity_interp_method = 'rc'
@@ -40,15 +40,10 @@ velocity_interp_method = 'rc'
     xmax = '${length}'
     ymin = '${fparse -pipe_diameter / 2}'
     ymax = '${fparse pipe_diameter / 2}'
-    nx = 400
-    ny = 30
+    nx = 40
+    ny = 8
   []
- # file = validation_2010_cp/LATEST
 []
-
-# [Problem]
-#   restart_file_base = validation_2010_cp/LATEST
-# []
 
 [Variables]
   [vel_x]
@@ -67,7 +62,6 @@ velocity_interp_method = 'rc'
 []
 
 [FVKernels]
- # inactive = 'v_drift u_drift'
   [mass]
     type = INSFVMassAdvection
     variable = pressure
@@ -94,7 +88,6 @@ velocity_interp_method = 'rc'
     type = WCNSFV2PMomentumDriftFlux
     variable = vel_x
     rho_d = ${rho_d}
-    rho = ${rho}
     fd = 'phase_2'
     u_slip = 'vel_slip_x'
     v_slip = 'vel_slip_y'
@@ -149,7 +142,6 @@ velocity_interp_method = 'rc'
     type = WCNSFV2PMomentumDriftFlux
     variable = vel_y
     rho_d = ${rho_d}
-    rho = ${rho}
     fd = 'phase_2'
     u_slip = 'vel_slip_x'
     v_slip = 'vel_slip_y'
@@ -426,6 +418,7 @@ velocity_interp_method = 'rc'
     type = SideAverageValue
     boundary = 'right'
     variable = 'vel_slip_y_var'
+    outputs=none
   []
   [void_fraction]
     type = SideAverageValue
@@ -446,6 +439,7 @@ velocity_interp_method = 'rc'
     type = SideAverageValue
     boundary = 'right'
     variable = 'vg_y'
+    outputs=none
   []
   [Re_g]
     type = ParsedPostprocessor

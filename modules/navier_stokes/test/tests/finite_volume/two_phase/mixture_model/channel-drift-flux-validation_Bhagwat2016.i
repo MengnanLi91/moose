@@ -2,7 +2,7 @@
 # flow regime slug
 # void fraction          0.455    0.55    0.6    0.317    0.417    0.475
 # mixture velocity(m/s)  0.1503   0.1509  0.1517 0.4501   0.4504   0.4508
-# particle diameter(m)   0.0003   0.00062 0.0008
+# particle diameter(m)   0.00032   0.00068 0.00089                  0.00079
 # flow regime bubbly
 # void fraction          0.125    0.21    0.27
 # mixture velocity(m/s)  1.0501   1.0502  1.0501
@@ -13,12 +13,14 @@ mu_d = 1.825e-5
 rho_d = 1.204
 pipe_diameter = 0.0127 # m
 length = 0.89 # m
-U = 0.4501 # m/s
-dp = 0.003
-inlet_phase_2 =  0.317
+U = 0.1503   # m/s
+dp = 0.00032
+inlet_phase_2 = 0.455
 g = 9.81
 advected_interp_method = 'upwind'
 velocity_interp_method = 'rc'
+
+file_name = 'refine_0'
 
 [GlobalParams]
   rhie_chow_user_object = 'rc'
@@ -43,15 +45,11 @@ velocity_interp_method = 'rc'
     xmax = '${length}'
     ymin = '${fparse -pipe_diameter / 2}'
     ymax = '${fparse pipe_diameter / 2}'
-    nx = 10 #400
-    ny = 4 #30
+    nx = 5
+    ny = 2
   []
- # file = validation_2010_cp/LATEST
+ # uniform_refine = 4
 []
-
-# [Problem]
-#   restart_file_base = validation_2010_cp/LATEST
-# []
 
 [Variables]
   [vel_x]
@@ -399,12 +397,7 @@ velocity_interp_method = 'rc'
 
 [Outputs]
   exodus = true
-  file_base = 'validation_2010'
-  # [my_checkpoint]
-  #   type = Checkpoint
-  #   num_files = 2
-  #   interval = 5
-  # []
+  file_base = ${file_name}
   [CSV]
     type = CSV
     execute_on = 'TIMESTEP_END'
@@ -426,11 +419,13 @@ velocity_interp_method = 'rc'
     type = SideExtremeValue
     boundary = 'left'
     variable = 'vel_slip_x_var'
+    outputs=none
   []
   [vslip_y]
     type = SideExtremeValue
     boundary = 'left'
     variable = 'vel_slip_y_var'
+    outputs=none
   []
   [vslip_value]
     type = ParsedPostprocessor
@@ -446,6 +441,10 @@ velocity_interp_method = 'rc'
     type = SideAverageValue
     boundary = 'right'
     variable = 'vg_y'
+    outputs=none
+  []
+  [grid_size]
+    type = AverageElementSize
   []
 
 []
