@@ -74,8 +74,8 @@ for var in ['vg_x', 'vslip_value']:
   print(f"GCI for medium to coarse grids: {gci_medium_coarse:.2%}")
 
   # Prepare data for plotting
-  grid_sizes = [coarse_grid_size, medium_grid_size]
-  errors = [epsilon32, epsilon21]  # Error for fine grid is assumed to be 0
+  grid_sizes = [medium_grid_size, coarse_grid_size]
+  errors = [epsilon21, epsilon32]  # Error for fine grid is assumed to be 0
 
   # Plot grid size vs. error
   plt.figure(figsize=(10, 6))

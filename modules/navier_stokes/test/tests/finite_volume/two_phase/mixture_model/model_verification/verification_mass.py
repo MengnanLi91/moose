@@ -27,10 +27,10 @@ def plot_norm(x, y, order, label, marker='x', linestyle='none'):
 
   xx = np.linspace(np.min(x), np.max(x), 30)
   if order == '1':
-    a = y[0]/x[0]
+    a = y[1]/x[1]
     plt.loglog(xx, a*xx, label='first order', linestyle=':')
   if order == '2':
-    a = y[0]/(x[0]*x[0])
+    a = y[1]/(x[1]*x[1])
     plt.loglog(xx, a*xx*xx, label='second order', linestyle=':')
   plt.loglog(x,y, label=label,linestyle=linestyle, marker=marker)
 
@@ -43,9 +43,9 @@ def L2_norm(data, analytical):
 
 
 def main():
-  file1 = "./dt=0.05.csv"
+  file1 = "./dt=0.0125.csv"
   file2 = "./dt=0.025.csv"
-  file3 = "./dt=0.0125.csv"
+  file3 = "./dt=0.1.csv"
 
   data1 = read_data(file1)
   data2 = read_data(file2)
@@ -55,7 +55,7 @@ def main():
   plot_void(data2, 'MOOSE')
   plot_void(ana_data, 'Analytical', linestyle='-', marker='none')
 
-  plt.title('Mass Transient')
+ # plt.title('Mass Transient')
   plt.xlabel('time(s)')
   plt.ylabel('Void fracton[-]')
   plt.legend(loc='best')
@@ -78,11 +78,12 @@ def main():
   Linfini_norm_void.append(Lini_3)
 
   plot_norm(dt, L2_norm_void, order='2', label='$l_2$', marker='x', linestyle='none')
-  plot_norm(dt, Linfini_norm_void, order='2', label='$l_{\infty}$', marker='x', linestyle='none')
+ # plot_norm(dt, Linfini_norm_void, order='2', label='$l_{\infty}$', marker='x', linestyle='none')
 
-  plt.title('Mass Transient Convergence')
+  #plt.title('Mass Transient Convergence')
   plt.xlabel('Timestep size(s)')
   plt.ylabel('$l_2$ error of void [-]')
+  plt.ylim((pow(10,-15),pow(10,-13)))
   plt.legend(loc='best')
   plt.savefig('results/MassTransientConvergence.png', dpi=200)
   plt.show()

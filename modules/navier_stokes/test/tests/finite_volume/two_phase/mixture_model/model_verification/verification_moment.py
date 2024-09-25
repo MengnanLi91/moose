@@ -27,10 +27,10 @@ def plot_norm(x, y, order, label, marker='x', linestyle='none'):
 
   xx = np.linspace(np.min(x), np.max(x), 30)
   if order == '1':
-    a = y[0]/x[0]
+    a = y[1]/x[1]
     plt.loglog(xx, a*xx, label='first order', linestyle=':')
   if order == '2':
-    a = y[0]/(x[0]*x[0])
+    a = y[1]/(x[1]*x[1])
     plt.loglog(xx, a*xx*xx, label='second order', linestyle=':')
   plt.loglog(x,y, label=label,linestyle=linestyle, marker=marker)
 
@@ -43,19 +43,19 @@ def L2_norm(data, analytical):
 
 
 def main():
-  file1 = "./moment_dt=0.05.csv"
-  file2 = "./moment_dt=0.025.csv"
-  file3 = "./moment_dt=0.0125.csv"
+  file1 = "./moment_dt=0.00625.csv"
+  file2 = "./moment_dt=0.0125.csv"
+  file3 = "./moment_dt=0.05.csv"
 
   data1 = read_data(file1)
   data2 = read_data(file2)
   data3 = read_data(file3)
   ana_data = analytical_solution_vel(data1)
 
-  plot_vel(data1, 'MOOSE')
+  plot_vel(data2, 'MOOSE')
   plot_vel(ana_data, 'Analytical', linestyle='-', marker='none')
 
-  plt.title('Momentum Transient')
+  #plt.title('Momentum Transient')
   plt.xlabel('time(s)')
   plt.ylabel('velocity($m/s$)')
   plt.legend(loc='best')
@@ -78,12 +78,13 @@ def main():
   Linfini_norm_vel.append(Lini_3)
 
   plot_norm(dt, L2_norm_vel, order='1', label='$l_2$', marker='x', linestyle='none')
-  plot_norm(dt, Linfini_norm_vel, order='1', label='$l_{\infty}$', marker='x', linestyle='none')
+ # plot_norm(dt, Linfini_norm_vel, order='1', label='$l_{\infty}$', marker='x', linestyle='none')
 
-  plt.title('Momentum Transient Convergence')
+  #plt.title('Momentum Transient Convergence')
   plt.xlabel('Timestep size(s)')
   plt.ylabel('$l_2$ error of velocity [$m/s$]')
   plt.legend(loc='best')
+  plt.ylim((pow(10,-2),pow(10,-0.5)))
   plt.savefig('results/MomentumTransientConvergence.png', dpi=200)
   plt.show()
 
