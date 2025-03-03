@@ -17,7 +17,7 @@ from llama_index.core.postprocessor import SimilarityPostprocessor
 # Set up GitHub credentials & variables
 load_dotenv()
 username = 'MOOSEbot'
-repo_owner = 'permcody'
+repo_owner = 'MengnanLi91'
 repo = 'moose'
 end_point = "https://api.github.com/graphql"
 discussion_arr = 1  # Number of discussions to fetch
