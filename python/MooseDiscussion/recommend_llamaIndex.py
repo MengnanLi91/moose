@@ -21,7 +21,7 @@ repo_owner = 'permcody'
 repo = 'moose'
 end_point = "https://api.github.com/graphql"
 discussion_arr = 1  # Number of discussions to fetch
-GITHUB_TOKEN = os.getenv("API_KEY")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
 
 def load_database(db_dir):
