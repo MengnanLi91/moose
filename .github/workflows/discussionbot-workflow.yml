@@ -7,7 +7,7 @@ on:
     #  - locked
 jobs:
   run_bot:
-    runs-on: [self-hosted, linux]
+    runs-on: [self-hosted, ubuntu-latest]
 
     steps:
       - name: Checkout code
