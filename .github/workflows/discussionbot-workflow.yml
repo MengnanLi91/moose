@@ -7,11 +7,11 @@ on:
     #  - locked
 jobs:
   run_bot:
-    runs-on: [self-hosted]
+    runs-on: [ubuntu-latest]
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: MOOSE_discussion_bot
 
