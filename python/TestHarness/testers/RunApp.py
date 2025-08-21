@@ -9,7 +9,7 @@
 
 import re, os, shutil
 from Tester import Tester
-from TestHarness import util
+from TestHarness import util, TestHarness
 from shlex import quote
 
 class RunApp(Tester):
@@ -48,10 +48,15 @@ class RunApp(Tester):
         params.addParam('no_error_deprecated', False, "Don't pass --error-deprecated on the command line even when running the TestHarness with --error-deprecated")
         params.addParam('no_additional_cli_args', False, "A Boolean indicating that no additional CLI args should be added from the TestHarness. Note: This parameter should be rarely used as it will not pass on additional options such as those related to mpi, threads, distributed mesh, errors, etc.")
 
+        params.addParam('capture_perf_graph', True, 'Whether or not to enable the capturing of PerfGraph output via Outputs/perf_graph_json_file and --capture-perf-graph')
+
         # Valgrind
         params.addParam('valgrind', 'NORMAL', "Set to (NONE, NORMAL, HEAVY) to determine which configurations where valgrind will run.")
 
-        params.addParam('libtorch_devices', ['CPU'], "The devices to use for this libtorch test ('CPU', 'CUDA', 'MPS'); default ('CPU')")
+        device_list_str = "', '".join(d.upper() for d in TestHarness.validComputeDevices())
+        device_param_doc = f"The devices to use for this libtorch or MFEM test ('{device_list_str}'); device availability depends on library support and compilation settings; default ('CPU')"
+        params.addParam('compute_devices', ['CPU'], device_param_doc)
+
         return params
 
     def __init__(self, name, params):
@@ -73,9 +78,9 @@ class RunApp(Tester):
             if params['no_additional_cli_args']:
                 raise Exception('The parameters "command_proxy" and "no_additional_cli_args" cannot be supplied together')
 
-        for value in params['libtorch_devices']:
-            if value.lower() not in ['cpu', 'cuda', 'mps']:
-                raise Exception(f'Unknown libtorch_device "{value}')
+        for value in params['compute_devices']:
+            if value.lower() not in TestHarness.validComputeDevices():
+                raise Exception(f'Unknown device "{value}"')
 
     def getInputFile(self):
         if self.specs.isValid('input'):
@@ -95,9 +100,16 @@ class RunApp(Tester):
         return input_file
 
     def checkRunnable(self, options):
-        if options.enable_recover:
-            if self.specs.isValid('expect_out') or self.specs.isValid('absent_out') or self.specs['should_crash'] == True:
-                self.addCaveats('expect_out RECOVER')
+        if options.enable_recover or options.enable_restep:
+            reason = 'RECOVER' if options.enable_recover else 'RESTEP'
+            caveats = []
+            for param in ['expect_out', 'absent_out']:
+                if self.specs.isValid(param):
+                    caveats.append(param)
+            if self.specs['should_crash'] == True:
+                caveats.append('should_crash')
+            if caveats:
+                self.addCaveats(f'{",".join(caveats)} {reason}')
                 self.setStatus(self.skip)
                 return False
 
@@ -112,12 +124,11 @@ class RunApp(Tester):
                 self.setStatus(self.skip)
                 return False
 
-        if self.specs['libtorch']:
-            devices_lower = [x.lower() for x in self.specs['libtorch_devices']]
-            if options.libtorch_device not in devices_lower:
-                self.addCaveats(f'{options.libtorch_device} not in libtorch_devices')
-                self.setStatus(self.skip)
-                return False
+        devices_lower = [x.lower() for x in self.specs['compute_devices']]
+        if options.compute_device not in devices_lower:
+            self.addCaveats(f'{options.compute_device} not in compute devices')
+            self.setStatus(self.skip)
+            return False
 
         if options.hpc and self.specs.isValid('command_proxy') and os.environ.get('APPTAINER_CONTAINER') is not None:
             self.addCaveats('hpc unsupported')
@@ -131,6 +142,25 @@ class RunApp(Tester):
             self.addCaveats('hpc min_cpus=1')
             self.setStatus(self.skip)
             return False
+
+        # Setup the capturing of perf graph data, if enabled and not in a case
+        # where it doesn't make sense to do it
+        if options.capture_perf_graph:
+            assert 'perf_graph' not in self.json_metadata
+            skip = not self.specs['capture_perf_graph'] or \
+                self.specs['should_crash'] or \
+                self.specs['no_additional_cli_args'] or \
+                self.getCheckInput() or \
+                '--check-input' in self.specs['cli_args'] or \
+                '--mesh-only' in self.specs['cli_args'] or \
+                '--split-mesh' in self.specs['cli_args'] or \
+                (self.specs.isValid('input') and not self.specs['input']) or \
+                not self.specs['should_execute']
+            if skip:
+                self.addCaveats('no --capture-perf-graph')
+            else:
+                file = 'metadata_perf_graph_' + self.getTestNameForFile() + '.json'
+                self.json_metadata['perf_graph'] = Tester.JSONMetadata(file)
 
         return True
 
@@ -212,10 +242,13 @@ class RunApp(Tester):
         if specs['capabilities']:
             cli_args.append('--required-capabilities="' + quote(specs['capabilities'])+'"')
 
-        if (options.parallel_mesh or options.distributed_mesh) and ('--parallel-mesh' not in cli_args or '--distributed-mesh' not in cli_args):
+        if options.distributed_mesh and '--distributed-mesh' not in cli_args:
             # The user has passed the parallel-mesh option to the test harness
             # and it is NOT supplied already in the cli-args option
             cli_args.append('--distributed-mesh')
+
+        if specs['restep'] != False and options.enable_restep:
+            cli_args.append('--test-restep')
 
         if '--error' not in cli_args and (not specs["allow_warnings"] or options.error) and not options.allow_warnings:
             cli_args.append('--error')
@@ -239,6 +272,11 @@ class RunApp(Tester):
             cli_args.append('--timing')
             cli_args.append('Outputs/perf_graph=true')
 
+        pg_metadata = self.json_metadata.get('perf_graph')
+        if pg_metadata:
+            path = os.path.join(self.getTestDir(), pg_metadata.path)
+            cli_args.append(f'Outputs/perf_graph_json_file={path}')
+
         if options.colored == False:
             cli_args.append('--color off')
 
@@ -248,12 +286,10 @@ class RunApp(Tester):
         if options.scaling and specs['scale_refine'] > 0:
             cli_args.insert(0, ' -r ' + str(specs['scale_refine']))
 
-        if specs['libtorch']:
-            cli_args.append(f'--libtorch-device {options.libtorch_device}')
-
         # Get the number of processors and threads the Tester requires
         ncpus = self.getProcs(options)
         nthreads = self.getThreads(options)
+        cli_args.append(f'--compute-device={options.compute_device}')
 
         if specs['redirect_output'] and ncpus > 1:
             cli_args.append('--keep-cout --redirect-output ' + self.name())
@@ -297,7 +333,7 @@ class RunApp(Tester):
             if custom_module.custom_evaluation(runner_output):
                 return errors
             else:
-                errors += "#"*80 + "\n\n" + "Custom evaluation failed.\n"
+                errors += util.outputHeader('Custom evaluation failed', ending=False)
                 self.setStatus(self.fail, "CUSTOM EVAL FAILED")
                 return errors
 
@@ -336,7 +372,8 @@ class RunApp(Tester):
                 # Exclusive OR test
                 if attr['error_missing'] ^ have_expected_out:
                     reason = attr['reason']
-                    errors += "#"*80 + "\n\n" + attr['message'].format(match_type) + "\n\n" + specs[param] + "\n"
+                    errors += util.outputHeader(attr['message'].format(match_type) + "\n\n" + specs[param],
+                                                ending=False)
                     break
 
         if reason != '':

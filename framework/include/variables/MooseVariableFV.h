@@ -462,6 +462,7 @@ public:
   std::pair<bool, std::vector<const FVFluxBC *>> getFluxBCs(const FaceInfo & fi) const;
 
   virtual void residualSetup() override;
+  virtual void initialSetup() override;
   virtual void jacobianSetup() override;
   virtual void timestepSetup() override;
   virtual void meshChanged() override;
@@ -502,6 +503,8 @@ public:
 
   bool supportsFaceArg() const override final { return true; }
   bool supportsElemSideQpArg() const override final { return true; }
+
+  virtual void sizeMatrixTagData() override;
 
 protected:
   /**
@@ -566,6 +569,14 @@ private:
 
   /// Whether the boundary to Dirichlet cache map has been setup yet
   bool _dirichlet_map_setup = false;
+
+  /**
+   * Setup the boundary to Flux BC map
+   */
+  void determineBoundaryToFluxBCMap();
+
+  /// Whether the boundary to fluxBC cache map has been setup yet
+  bool _flux_map_setup = false;
 
 public:
   const MooseArray<OutputType> & nodalValueArray() const override
@@ -703,6 +714,10 @@ private:
   /// in \p getDirichletBC
   std::unordered_map<BoundaryID, const FVDirichletBCBase *> _boundary_id_to_dirichlet_bc;
 
+  /// Map from boundary ID to flux boundary conditions. Added to enable internal separator
+  /// boundaries.
+  std::unordered_map<BoundaryID, std::vector<const FVFluxBC *>> _boundary_id_to_flux_bc;
+
   /**
    * Emit an error message for unsupported lower-d ops
    */
@@ -831,10 +846,20 @@ MooseVariableFV<OutputType>::dofIndicesLower() const
 
 template <typename OutputType>
 void
+MooseVariableFV<OutputType>::initialSetup()
+{
+  determineBoundaryToDirichletBCMap();
+  determineBoundaryToFluxBCMap();
+  MooseVariableField<OutputType>::initialSetup();
+}
+
+template <typename OutputType>
+void
 MooseVariableFV<OutputType>::meshChanged()
 {
   _prev_elem = nullptr;
   _dirichlet_map_setup = false;
+  _flux_map_setup = false;
   MooseVariableField<OutputType>::meshChanged();
 }
 
@@ -843,6 +868,7 @@ void
 MooseVariableFV<OutputType>::timestepSetup()
 {
   _dirichlet_map_setup = false;
+  _flux_map_setup = false;
   MooseVariableField<OutputType>::timestepSetup();
 }
 

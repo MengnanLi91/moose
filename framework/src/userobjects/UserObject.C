@@ -23,6 +23,8 @@ UserObject::validParams()
   // Add the SetupInterface parameter, 'execute_on', and set it to a default of 'timestep_end'
   params += SetupInterface::validParams();
   params.set<ExecFlagEnum>("execute_on", true) = EXEC_TIMESTEP_END;
+  ExecFlagEnum & exec_enum = params.set<ExecFlagEnum>("execute_on", true);
+  exec_enum.addAvailableFlags(EXEC_TRANSFER);
 
   params.addParam<bool>("use_displaced_mesh",
                         false,
@@ -75,6 +77,7 @@ UserObject::UserObject(const InputParameters & parameters)
     Restartable(this, "UserObjects"),
     MeshMetaDataInterface(this),
     MeshChangedInterface(parameters),
+    MeshDisplacedInterface(parameters),
     PerfGraphInterface(this),
     _subproblem(*getCheckedPointerParam<SubProblem *>("_subproblem")),
     _fe_problem(*getCheckedPointerParam<FEProblemBase *>("_fe_problem_base")),

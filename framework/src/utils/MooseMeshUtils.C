@@ -12,6 +12,8 @@
 
 #include "libmesh/elem.h"
 #include "libmesh/boundary_info.h"
+#include "libmesh/id_types.h"
+#include "libmesh/int_range.h"
 #include "libmesh/parallel.h"
 #include "libmesh/parallel_algebra.h"
 #include "libmesh/utility.h"
@@ -183,14 +185,40 @@ getBoundaryIDSet(const MeshBase & mesh,
 }
 
 std::vector<subdomain_id_type>
-getSubdomainIDs(const MeshBase & mesh, const std::vector<SubdomainName> & subdomain_name)
+getSubdomainIDs(const MeshBase & mesh, const std::vector<SubdomainName> & subdomain_names)
 {
-  std::vector<SubdomainID> ids(subdomain_name.size());
+  std::vector<subdomain_id_type> ids;
 
-  for (const auto i : index_range(subdomain_name))
-    ids[i] = MooseMeshUtils::getSubdomainID(subdomain_name[i], mesh);
+  // shortcut for "ANY_BLOCK_ID"
+  if (subdomain_names.size() == 1 && subdomain_names[0] == "ANY_BLOCK_ID")
+  {
+    // since get_mesh_subdomains() requires a prepared mesh, we need to check that here
+    mooseAssert(mesh.is_prepared(),
+                "getSubdomainIDs() should only be called on a prepared mesh if ANY_BLOCK_ID is "
+                "used to query all block IDs");
+    ids.assign(mesh.get_mesh_subdomains().begin(), mesh.get_mesh_subdomains().end());
+    return ids;
+  }
+
+  // loop through subdomain names and get IDs (this preserves the order of subdomain_names)
+  ids.resize(subdomain_names.size());
+  for (auto i : index_range(subdomain_names))
+  {
+    if (subdomain_names[i] == "ANY_BLOCK_ID")
+      mooseError("getSubdomainIDs() accepts \"ANY_BLOCK_ID\" if and only if it is the only "
+                 "subdomain name being queried.");
+    ids[i] = MooseMeshUtils::getSubdomainID(subdomain_names[i], mesh);
+  }
 
   return ids;
+}
+
+std::set<subdomain_id_type>
+getSubdomainIDs(const MeshBase & mesh, const std::set<SubdomainName> & subdomain_names)
+{
+  const auto blk_ids = getSubdomainIDs(
+      mesh, std::vector<SubdomainName>(subdomain_names.begin(), subdomain_names.end()));
+  return {blk_ids.begin(), blk_ids.end()};
 }
 
 BoundaryID
@@ -535,8 +563,8 @@ void
 swapNodesInElem(Elem & elem, const unsigned int nd1, const unsigned int nd2)
 {
   Node * n_temp = elem.node_ptr(nd1);
-  elem.set_node(nd1) = elem.node_ptr(nd2);
-  elem.set_node(nd2) = n_temp;
+  elem.set_node(nd1, elem.node_ptr(nd2));
+  elem.set_node(nd2, n_temp);
 }
 
 void
@@ -594,11 +622,11 @@ buildBoundaryMesh(const ReplicatedMesh & input_mesh, const boundary_id_type boun
       auto & n = side_elem->node_ref(i);
 
       if (old_new_node_map.count(n.id()))
-        copy->set_node(i) = poly_mesh->node_ptr(old_new_node_map[n.id()]);
+        copy->set_node(i, poly_mesh->node_ptr(old_new_node_map[n.id()]));
       else
       {
         Node * node = poly_mesh->add_point(side_elem->point(i));
-        copy->set_node(i) = node;
+        copy->set_node(i, node);
         old_new_node_map[n.id()] = node->id();
       }
     }

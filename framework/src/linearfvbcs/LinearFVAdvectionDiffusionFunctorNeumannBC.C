@@ -1,5 +1,5 @@
 //* This file is part of the MOOSE framework
-//* https://www.mooseframework.org
+//* https://mooseframework.inl.gov
 //*
 //* All rights reserved, see COPYRIGHT for full restrictions
 //* https://github.com/idaholab/moose/blob/master/COPYRIGHT
@@ -31,6 +31,7 @@ LinearFVAdvectionDiffusionFunctorNeumannBC::LinearFVAdvectionDiffusionFunctorNeu
     _functor(getFunctor<Real>("functor")),
     _diffusion_coeff(getFunctor<Real>("diffusion_coeff"))
 {
+  _var.computeCellGradients();
 }
 
 Real

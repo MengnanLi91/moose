@@ -226,7 +226,8 @@ SetupMeshAction::modifyParamsForUseSplit(InputParameters & moose_object_params) 
     new_pars.applyParameters(_moose_object_pars);
 
     new_pars.set<MeshFileName>("file") = split_file;
-    new_pars.set<MooseApp *>("_moose_app") = moose_object_params.get<MooseApp *>("_moose_app");
+    new_pars.set<MooseApp *>(MooseBase::app_param) =
+        moose_object_params.get<MooseApp *>(MooseBase::app_param);
     moose_object_params = new_pars;
   }
   else
@@ -251,7 +252,7 @@ SetupMeshAction::act()
   {
     TIME_SECTION("SetupMeshAction::act::setup_mesh", 1, "Setting Up Mesh", true);
 
-    if (_app.masterMesh())
+    if (_app.useMasterMesh())
       _mesh = _app.masterMesh()->safeClone();
     else
     {
@@ -303,7 +304,7 @@ SetupMeshAction::act()
   {
     TIME_SECTION("SetupMeshAction::act::set_mesh_base", 1, "Setting Mesh", true);
 
-    if (!_app.masterMesh() && !_mesh->hasMeshBase())
+    if (!_app.useMasterMesh() && !_mesh->hasMeshBase())
     {
       // We want to set the MeshBase object to that coming from mesh generators when the following
       // conditions are met:
@@ -351,7 +352,7 @@ SetupMeshAction::act()
   {
     TIME_SECTION("SetupMeshAction::act::set_mesh_base", 1, "Initializing Mesh", true);
 
-    if (_app.masterMesh())
+    if (_app.useMasterMesh())
     {
       if (_app.masterDisplacedMesh())
         _displaced_mesh = _app.masterDisplacedMesh()->safeClone();

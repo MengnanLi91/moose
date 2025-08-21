@@ -7,6 +7,7 @@
 //* Licensed under LGPL 2.1, please see LICENSE for details
 //* https://www.gnu.org/licenses/lgpl-2.1.html
 
+#include "MooseError.h"
 #include "MooseMesh.h"
 #include "Factory.h"
 #include "CacheChangedListsThread.h"
@@ -186,6 +187,19 @@ MooseMesh::validParams()
       "be provided using add_sideset_ids. In this case this list and add_sideset_ids must contain "
       "the same number of items.");
 
+  params.addParam<std::vector<BoundaryID>>(
+      "add_nodeset_ids",
+      "The listed nodeset ids will be assumed valid for the mesh. This permits setting up boundary "
+      "restrictions for node initially containing no sides. Names for this nodesets may be "
+      "provided using add_nodeset_names. In this case this list and add_nodeset_names must contain "
+      "the same number of items.");
+  params.addParam<std::vector<BoundaryName>>(
+      "add_nodeset_names",
+      "The listed nodeset names will be assumed valid for the mesh. This permits setting up "
+      "boundary restrictions for nodesets initially containing no sides. Ids for this nodesets may "
+      "be provided using add_nodesets_ids. In this case this list and add_nodesets_ids must "
+      "contain the same number of items.");
+
   params += MooseAppCoordTransform::validParams();
 
   // This indicates that the derived mesh type accepts a MeshGenerator, and should be set to true in
@@ -200,9 +214,9 @@ MooseMesh::validParams()
   // groups
   params.addParamNamesToGroup("patch_update_strategy patch_size max_leaf_size", "Geometric search");
   params.addParamNamesToGroup("nemesis", "Advanced");
-  params.addParamNamesToGroup(
-      "add_subdomain_ids add_subdomain_names add_sideset_ids add_sideset_names",
-      "Pre-declaration of future mesh sub-entities");
+  params.addParamNamesToGroup("add_subdomain_ids add_subdomain_names add_sideset_ids "
+                              "add_sideset_names add_nodeset_ids add_nodeset_names",
+                              "Pre-declaration of future mesh sub-entities");
   params.addParamNamesToGroup("construct_node_list_from_side_list build_all_side_lowerd_mesh",
                               "Automatic definition of mesh element sides entities");
   params.addParamNamesToGroup("partitioner centroid_partitioner_direction", "Partitioning");
@@ -374,6 +388,7 @@ MooseMesh::freeBndNodes()
     it.second.clear();
 
   _bnd_node_ids.clear();
+  _bnd_node_range.reset();
 }
 
 void
@@ -387,6 +402,7 @@ MooseMesh::freeBndElems()
     it.second.clear();
 
   _bnd_elem_ids.clear();
+  _bnd_elem_range.reset();
 }
 
 bool
@@ -482,53 +498,60 @@ MooseMesh::prepare(const MeshBase * const mesh_to_clone)
       getMesh().get_boundary_info().get_side_boundary_ids();
   _mesh_sideset_ids.insert(local_side_bids.begin(), local_side_bids.end());
 
-  // Add explicitly requested sidesets
+  // Add explicitly requested sidesets/nodesets
   // This is done *after* the side boundaries (e.g. "right", ...) have been generated.
-  if (isParamValid("add_sideset_ids") && !isParamValid("add_sideset_names"))
+  auto add_sets = [this](const bool sidesets, auto & set_ids)
   {
-    const auto & add_sideset_ids = getParam<std::vector<BoundaryID>>("add_sideset_ids");
-    _mesh_boundary_ids.insert(add_sideset_ids.begin(), add_sideset_ids.end());
-    _mesh_sideset_ids.insert(add_sideset_ids.begin(), add_sideset_ids.end());
-  }
-  else if (isParamValid("add_sideset_ids") && isParamValid("add_sideset_names"))
-  {
-    const auto add_sidesets =
-        getParam<BoundaryID, BoundaryName>("add_sideset_ids", "add_sideset_names");
-    for (const auto & [sideset_id, sideset_name] : add_sidesets)
-    {
-      // add sideset id
-      _mesh_boundary_ids.insert(sideset_id);
-      _mesh_sideset_ids.insert(sideset_id);
-      // set name of the sideset just added
-      setBoundaryName(sideset_id, sideset_name);
-    }
-  }
-  else if (isParamValid("add_sideset_names"))
-  {
-    // the user has defined add_sideset_names, but not add_sideset_ids
-    const auto & add_sideset_names = getParam<std::vector<BoundaryName>>("add_sideset_names");
+    const std::string type = sidesets ? "sideset" : "nodeset";
+    const std::string id_param = "add_" + type + "_ids";
+    const std::string name_param = "add_" + type + "_names";
 
-    // to define sideset ids, we need the largest sideset id defined yet.
-    boundary_id_type offset = 0;
-    if (!_mesh_sideset_ids.empty())
-      offset = *_mesh_sideset_ids.rbegin();
-    if (!_mesh_boundary_ids.empty())
-      offset = std::max(offset, *_mesh_boundary_ids.rbegin());
-
-    // add all sidesets (and auto-assign ids)
-    for (const BoundaryName & sideset_name : add_sideset_names)
+    if (isParamValid(id_param))
     {
-      // to avoid two sidesets with the same ID (notably on recover)
-      if (getBoundaryID(sideset_name) != Moose::INVALID_BOUNDARY_ID)
-        continue;
-      const auto sideset_id = ++offset;
-      // add sideset id
-      _mesh_boundary_ids.insert(sideset_id);
-      _mesh_sideset_ids.insert(sideset_id);
-      // set name of the sideset just added
-      setBoundaryName(sideset_id, sideset_name);
+      const auto & add_ids = getParam<std::vector<BoundaryID>>(id_param);
+      _mesh_boundary_ids.insert(add_ids.begin(), add_ids.end());
+      set_ids.insert(add_ids.begin(), add_ids.end());
+      if (isParamValid(name_param))
+      {
+        const auto & add_names = getParam<std::vector<BoundaryName>>(name_param);
+        mooseAssert(add_names.size() == add_ids.size(),
+                    "Id and name sets must be the same size when adding.");
+        for (const auto i : index_range(add_ids))
+          setBoundaryName(add_ids[i], add_names[i]);
+      }
     }
-  }
+    else if (isParamValid(name_param))
+    {
+      // the user has defined names, but not ids
+      const auto & add_names = getParam<std::vector<BoundaryName>>(name_param);
+
+      auto & mesh_ids = sidesets ? _mesh_sideset_ids : _mesh_nodeset_ids;
+
+      // to define ids, we need the largest id defined yet.
+      boundary_id_type offset = 0;
+      if (!mesh_ids.empty())
+        offset = *mesh_ids.rbegin();
+      if (!_mesh_boundary_ids.empty())
+        offset = std::max(offset, *_mesh_boundary_ids.rbegin());
+
+      // add all sidesets/nodesets (and auto-assign ids)
+      for (const auto & name : add_names)
+      {
+        // to avoid two sets with the same ID (notably on recover)
+        if (getBoundaryID(name) != Moose::INVALID_BOUNDARY_ID)
+          continue;
+        const auto id = ++offset;
+        // add sideset id
+        _mesh_boundary_ids.insert(id);
+        set_ids.insert(id);
+        // set name of the sideset just added
+        setBoundaryName(id, name);
+      }
+    }
+  };
+
+  add_sets(true, _mesh_sideset_ids);
+  add_sets(false, _mesh_nodeset_ids);
 
   // Communicate subdomain and boundary IDs if this is a parallel mesh
   if (!getMesh().is_serial())
@@ -744,7 +767,7 @@ MooseMesh::buildLowerDMesh()
 
       if (build_side)
       {
-        std::unique_ptr<Elem> side_elem(elem->build_side_ptr(side, false));
+        std::unique_ptr<Elem> side_elem(elem->build_side_ptr(side));
 
         // The side will be added with the same processor id as the parent.
         side_elem->processor_id() = elem->processor_id();
@@ -1716,15 +1739,23 @@ MooseMesh::getSubdomainIDs(const std::vector<SubdomainName> & subdomain_name) co
   return MooseMeshUtils::getSubdomainIDs(getMesh(), subdomain_name);
 }
 
+std::set<SubdomainID>
+MooseMesh::getSubdomainIDs(const std::set<SubdomainName> & subdomain_name) const
+{
+  return MooseMeshUtils::getSubdomainIDs(getMesh(), subdomain_name);
+}
+
 void
 MooseMesh::setSubdomainName(SubdomainID subdomain_id, const SubdomainName & name)
 {
+  mooseAssert(name != "ANY_BLOCK_ID", "Cannot set subdomain name to 'ANY_BLOCK_ID'");
   getMesh().subdomain_name(subdomain_id) = name;
 }
 
 void
 MooseMesh::setSubdomainName(MeshBase & mesh, SubdomainID subdomain_id, const SubdomainName & name)
 {
+  mooseAssert(name != "ANY_BLOCK_ID", "Cannot set subdomain name to 'ANY_BLOCK_ID'");
   mesh.subdomain_name(subdomain_id) = name;
 }
 
@@ -2377,7 +2408,7 @@ MooseMesh::buildPRefinementAndCoarseningMaps(Assembly * const assembly)
 
     Elem * const elem = mesh.add_elem(Elem::build(elem_type).release());
     for (const auto i : elem->node_index_range())
-      elem->set_node(i) = mesh.node_ptr(i);
+      elem->set_node(i, mesh.node_ptr(i));
 
     std::unique_ptr<FEBase> fe_face(FEBase::build(dim, p_refinable_fe_type));
     fe_face->get_phi();
@@ -2610,7 +2641,7 @@ MooseMesh::findAdaptivityQpMaps(const Elem * template_elem,
   Elem * elem = mesh.add_elem(Elem::build(template_elem->type()).release());
 
   for (unsigned int i = 0; i < template_elem->n_nodes(); ++i)
-    elem->set_node(i) = mesh.node_ptr(i);
+    elem->set_node(i, mesh.node_ptr(i));
 
   std::unique_ptr<FEBase> fe(FEBase::build(dim, FEType()));
   fe->get_phi();
@@ -4072,6 +4103,32 @@ MooseMesh::setCoordSystem(const std::vector<SubdomainName> & blocks,
                "of the 'Mesh/coord_type' parameter. Did you provide different parameter values for "
                "'coord_type' to 'Mesh' and 'Problem'?");
 
+  // If blocks contain ANY_BLOCK_ID, it should be the only block specified, and coord_sys should
+  // have one and only one entry. In that case, the same coordinate system will be set for all
+  // subdomains.
+  if (blocks.size() == 1 && blocks[0] == "ANY_BLOCK_ID")
+  {
+    if (coord_sys.size() > 1)
+      mooseError("If you specify ANY_BLOCK_ID as the only block, you must also specify a single "
+                 "coordinate system for it.");
+    if (!_mesh->is_prepared())
+      mooseError(
+          "You cannot set the coordinate system for ANY_BLOCK_ID before the mesh is prepared. "
+          "Please call this method after the mesh is prepared.");
+    const auto coord_type = coord_sys.size() == 0
+                                ? Moose::COORD_XYZ
+                                : Moose::stringToEnum<Moose::CoordinateSystemType>(coord_sys[0]);
+    for (const auto sid : meshSubdomains())
+      _coord_sys[sid] = coord_type;
+    return;
+  }
+
+  // If multiple blocks are specified, but one of them is ANY_BLOCK_ID, let's emit a helpful error
+  if (std::find(blocks.begin(), blocks.end(), "ANY_BLOCK_ID") != blocks.end())
+    mooseError("You cannot specify ANY_BLOCK_ID together with other blocks in the "
+               "setCoordSystem() method. If you want to set the same coordinate system for all "
+               "blocks, use ANY_BLOCK_ID as the only block.");
+
   auto subdomains = meshSubdomains();
   // It's possible that a user has called this API before the mesh is prepared and consequently we
   // don't yet have the subdomains in meshSubdomains()
@@ -4301,8 +4358,6 @@ MooseMesh::getPRefinementMapHelper(
     const Elem & elem,
     const std::map<std::pair<ElemType, unsigned int>, std::vector<QpMap>> & map) const
 {
-  mooseAssert(elem.active() && elem.p_refinement_flag() == Elem::JUST_REFINED,
-              "These are the conditions that should be met for requesting a refinement map");
   // We are actually seeking the map stored with the p_level - 1 key, e.g. the refinement map that
   // maps from the previous p_level to this element's p_level
   return libmesh_map_find(map,
@@ -4341,4 +4396,10 @@ const std::vector<QpMap> &
 MooseMesh::getPCoarseningSideMap(const Elem & elem) const
 {
   return getPCoarseningMapHelper(elem, _elem_type_to_p_coarsening_side_map);
+}
+
+bool
+MooseMesh::skipNoncriticalPartitioning() const
+{
+  return _mesh->skip_noncritical_partitioning();
 }

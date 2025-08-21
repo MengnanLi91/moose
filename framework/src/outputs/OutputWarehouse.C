@@ -223,26 +223,24 @@ OutputWarehouse::mooseConsole(std::ostringstream & buffer)
     buffer.clear();
     buffer.str("");
   }
-  else if (!_app.actionWarehouse().isTaskComplete("add_output"))
+  else if (_app.actionWarehouse().hasTask("add_output") &&
+           !_app.actionWarehouse().isTaskComplete("add_output") && !_buffer_action_console_outputs)
   {
-    if (!_buffer_action_console_outputs)
-    {
-      // this will cause messages to console before its construction immediately flushed and
-      // cleared.
-      bool this_message_ends_in_newline = message.empty() ? true : message.back() == '\n';
+    // this will cause messages to console before its construction immediately flushed and
+    // cleared.
+    bool this_message_ends_in_newline = message.empty() ? true : message.back() == '\n';
 
-      // If that last message ended in newline then this one may need
-      // to start with indenting
-      // Note that we only indent the first line if the last message ended in new line
-      if (_app.multiAppLevel() > 0)
-        MooseUtils::indentMessage(_app.name(), message, COLOR_CYAN, _last_message_ended_in_newline);
+    // If that last message ended in newline then this one may need
+    // to start with indenting
+    // Note that we only indent the first line if the last message ended in new line
+    if (_app.multiAppLevel() > 0)
+      MooseUtils::indentMessage(_app.name(), message, COLOR_CYAN, _last_message_ended_in_newline);
 
-      Moose::out << message << std::flush;
-      buffer.clear();
-      buffer.str("");
+    Moose::out << message << std::flush;
+    buffer.clear();
+    buffer.str("");
 
-      _last_message_ended_in_newline = this_message_ends_in_newline;
-    }
+    _last_message_ended_in_newline = this_message_ends_in_newline;
   }
 
   _last_buffer = &buffer;
@@ -413,16 +411,20 @@ OutputWarehouse::resetFileBase()
 {
   // Set the file base from the application to FileOutputs and add associated filenames
   for (const auto & obj : _all_objects)
-  {
-    FileOutput * file_output = dynamic_cast<FileOutput *>(obj);
-    if (file_output)
+    if (FileOutput * file_output = dynamic_cast<FileOutput *>(obj))
     {
-      const std::string file_base = obj->parameters().get<bool>("_built_by_moose")
-                                        ? _app.getOutputFileBase()
-                                        : (_app.getOutputFileBase(true) + "_" + obj->name());
-      file_output->setFileBase(file_base);
+      std::string file_base;
+      if (obj->parameters().get<bool>("_built_by_moose"))
+      {
+        if (obj->isParamValid("file_base"))
+          file_base = obj->getParam<std::string>("file_base");
+        else
+          file_base = _app.getOutputFileBase();
+      }
+      else
+        file_base = _app.getOutputFileBase(true) + "_" + obj->name();
 
+      file_output->setFileBase(file_base);
       addOutputFilename(obj->name(), file_output->filename());
     }
-  }
 }
