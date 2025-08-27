@@ -3669,10 +3669,10 @@ FEProblemBase::projectSolution()
       DenseVector<Number> vals(var.order());
       ic->compute(vals);
 
-      const unsigned int n_SCALAR_dofs = var.dofIndices().size();
-      for (unsigned int i = 0; i < n_SCALAR_dofs; i++)
+      const unsigned int n_scalar_dofs = var.dofIndices().size();
+      for (unsigned int i = 0; i < n_scalar_dofs; i++)
       {
-        const dof_id_type global_index = var.dofIndices()[i];
+        const auto global_index = var.dofIndices()[i];
         var.sys().solution().set(global_index, vals(i));
         var.setValue(i, vals(i));
       }
@@ -3690,19 +3690,37 @@ FEProblemBase::projectSolution()
 }
 
 void
-FEProblemBase::projectInitialConditionOnCustomRange(ConstElemRange & elem_range,
-                                                    ConstBndNodeRange & bnd_nodes)
+FEProblemBase::projectInitialConditionOnCustomRange(
+    ConstElemRange & elem_range,
+    ConstBndNodeRange & bnd_nodes,
+    const std::optional<std::set<VariableName>> & target_vars)
 {
-  ComputeInitialConditionThread cic(*this);
-  Threads::parallel_reduce(elem_range, cic);
+  if (target_vars)
+  {
+    ComputeInitialConditionThread cic(*this, &(*target_vars));
+    Threads::parallel_reduce(elem_range, cic);
+  }
+  else
+  {
+    ComputeInitialConditionThread cic(*this);
+    Threads::parallel_reduce(elem_range, cic);
+  }
 
   // Need to close the solution vector here so that boundary ICs take precendence
   for (auto & nl : _nl)
     nl->solution().close();
   _aux->solution().close();
 
-  ComputeBoundaryInitialConditionThread cbic(*this);
-  Threads::parallel_reduce(bnd_nodes, cbic);
+  if (target_vars)
+  {
+    ComputeBoundaryInitialConditionThread cbic(*this, &(*target_vars));
+    Threads::parallel_reduce(bnd_nodes, cbic);
+  }
+  else
+  {
+    ComputeBoundaryInitialConditionThread cbic(*this);
+    Threads::parallel_reduce(bnd_nodes, cbic);
+  }
 
   for (auto & nl : _nl)
     nl->solution().close();
@@ -3717,15 +3735,19 @@ FEProblemBase::projectInitialConditionOnCustomRange(ConstElemRange & elem_range,
     for (const auto & ic : ics)
     {
       MooseVariableScalar & var = ic->variable();
+
+      if (target_vars && !target_vars->count(var.name()))
+        continue;
+
       var.reinit();
 
       DenseVector<Number> vals(var.order());
       ic->compute(vals);
 
-      const unsigned int n_SCALAR_dofs = var.dofIndices().size();
-      for (unsigned int i = 0; i < n_SCALAR_dofs; i++)
+      const unsigned int n_scalar_dofs = var.dofIndices().size();
+      for (unsigned int i = 0; i < n_scalar_dofs; i++)
       {
-        const dof_id_type global_index = var.dofIndices()[i];
+        const auto global_index = var.dofIndices()[i];
         var.sys().solution().set(global_index, vals(i));
         var.setValue(i, vals(i));
       }
@@ -3740,6 +3762,56 @@ FEProblemBase::projectInitialConditionOnCustomRange(ConstElemRange & elem_range,
 
   _aux->solution().close();
   _aux->solution().localize(*_aux->sys().current_local_solution, _aux->dofMap().get_send_list());
+}
+
+void
+FEProblemBase::projectFunctionOnCustomRange(ConstElemRange & elem_range,
+                                            Number (*func)(const Point &,
+                                                           const libMesh::Parameters &,
+                                                           const std::string &,
+                                                           const std::string &),
+                                            Gradient (*func_grad)(const Point &,
+                                                                  const libMesh::Parameters &,
+                                                                  const std::string &,
+                                                                  const std::string &),
+                                            const libMesh::Parameters & params,
+                                            const VariableName & target_var)
+{
+  mooseAssert(!Threads::in_threads,
+              "We're performing a projection based on data from just the thread 0 variable, so any "
+              "modifications to the variable solution must have been thread joined already");
+
+  const auto & var = getStandardVariable(0, target_var);
+  const auto var_num = var.number();
+  const auto sn = systemNumForVariable(target_var);
+  auto & sys = getSystemBase(sn);
+
+  // Let libmesh handle the projection
+  System & libmesh_sys = getSystem(target_var);
+  auto temp_vec = libmesh_sys.current_local_solution->zero_clone();
+  libmesh_sys.project_vector(func, func_grad, params, *temp_vec);
+  temp_vec->close();
+
+  // Get the dof indices to copy
+  DofMap & dof_map = sys.dofMap();
+  std::set<dof_id_type> dof_indices;
+  std::vector<dof_id_type> elem_dof_indices;
+
+  for (const auto & elem : elem_range)
+  {
+    dof_map.dof_indices(elem, elem_dof_indices, var_num);
+    dof_indices.insert(elem_dof_indices.begin(), elem_dof_indices.end());
+  }
+  std::vector<dof_id_type> dof_indices_v(dof_indices.begin(), dof_indices.end());
+
+  // Copy the projected values into the solution vector
+  std::vector<Real> dof_vals;
+  temp_vec->get(dof_indices_v, dof_vals);
+  mooseAssert(sys.solution().closed(),
+              "The solution should be closed before mapping our projection");
+  sys.solution().insert(dof_vals, dof_indices_v);
+  sys.solution().close();
+  sys.solution().localize(*libmesh_sys.current_local_solution, sys.dofMap().get_send_list());
 }
 
 std::shared_ptr<MaterialBase>
@@ -4209,7 +4281,15 @@ FEProblemBase::addObjectParamsHelper(InputParameters & parameters,
   {
     const auto variable_name = parameters.varName(var_param_name, object_name);
     if (this->hasVariable(variable_name) || this->hasScalarVariable(variable_name))
-      sys_num = getSystem(parameters.varName(var_param_name, object_name)).number();
+      sys_num = getSystem(variable_name).number();
+  }
+  if (parameters.isParamValid("solver_sys"))
+  {
+    const auto var_sys_num = sys_num;
+    sys_num = getSystemBase(parameters.get<SolverSystemName>("solver_sys")).number();
+    if (sys_num != var_sys_num && parameters.isParamValid(var_param_name))
+      mooseError("We dont support setting 'variable' to a variable that is not set to the same "
+                 "system as the 'solver_sys' parameter");
   }
 
   if (_displaced_problem && parameters.have_parameter<bool>("use_displaced_mesh") &&
@@ -6336,7 +6416,8 @@ FEProblemBase::solverSysNum(const SolverSystemName & solver_sys_name) const
     if (search == _solver_sys_name_to_num.end())
       mooseError("The solver system number was requested for system '" + solver_sys_name,
                  "' but this system does not exist in the Problem. Systems can be added to the "
-                 "problem using the 'nl_sys_names' parameter.\nSystems in the Problem: " +
+                 "problem using the 'nl_sys_names'/'linear_sys_names' parameter.\nSystems in the "
+                 "Problem: " +
                      Moose::stringify(_solver_sys_names));
     solver_sys_num = search->second;
   }
@@ -8891,6 +8972,18 @@ FEProblemBase::getSystemBase(const unsigned int sys_num) const
     return *_solver_systems[sys_num];
 
   return *_aux;
+}
+
+SystemBase &
+FEProblemBase::getSystemBase(const std::string & sys_name)
+{
+  if (std::find(_solver_sys_names.begin(), _solver_sys_names.end(), sys_name) !=
+      _solver_sys_names.end())
+    return getSystemBase(solverSysNum(sys_name));
+  else if (sys_name == "aux0")
+    return *_aux;
+  else
+    mooseError("System '" + sys_name + "' was requested from problem but does not exist.");
 }
 
 SystemBase &
