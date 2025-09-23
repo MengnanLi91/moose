@@ -187,12 +187,12 @@ def moose_fmu_step_by_step(
 
 def main():
 
-    t0, t1, dt = 0, 2.0, 0.5
+    t0, t1, dt = 0, 2.0, 0.1
     moose_filename = 'MooseTest.fmu'
     result = simulate_moose_fmu(moose_filename, t0, t1, dt)
     logger.info("Start the second moose run after 2s")
-    time.sleep(2)
-    result = moose_fmu_step_by_step(moose_filename, t0, t1, dt)
+    # time.sleep(2)
+    # result = moose_fmu_step_by_step(moose_filename, t0, t1, dt)
 
     fmu_time  = result["time"]
     dt        = result["moose_time"]

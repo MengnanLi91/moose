@@ -24,12 +24,14 @@ class MooseTest(Moose2FMU):
         self.register_variable(String("BC_info", causality=Fmi2Causality.input, variability=Fmi2Variability.discrete))
         self.register_variable(Real("BC_value", causality=Fmi2Causality.input, variability=Fmi2Variability.continuous))
 
+        # Default experiment configuration
+        self.default_experiment = DefaultExperiment(start_time=0.0, stop_time=3.0, step_size=0.1)
+
         self.logger.info("MooseTest instance created.")
 
     def do_step(self,
                 current_time: float,
-                step_size:    float,
-                no_set_fmu_state_prior: bool = False) -> bool:
+                step_size:    float) -> bool:
 
         # Set a controllable ``Real`` parameter as boundary condition.
         if self.BC_info:
@@ -38,7 +40,7 @@ class MooseTest(Moose2FMU):
                     f"Change boundary condition {self.BC_info} to {self.BC_value}")
 
         # Synchronize MOOSE simulation time with FMU (support MOOSE simulation time stepping mechanism)
-        moose_time, signal = self.sync_with_moose(current_time, self.flag)
+        moose_time, signal = self.sync_with_moose(current_time, step_size, self.flag)
 
         if moose_time is None:
                 return False
@@ -63,7 +65,7 @@ class MooseTest(Moose2FMU):
             # send value to FMU variable
             self.diffused = diffused
 
-             # get the value of "pi" reporter named "constant" from MOOSE
+            # get the value of "pi" reporter named "constant" from MOOSE
             rep_value = self.get_reporter_value(self.flag, "constant/pi", current_time)
 
             if rep_value is None:
@@ -71,6 +73,17 @@ class MooseTest(Moose2FMU):
 
             # send value to FMU variable
             self.rep_value = rep_value
+
+            # set next time in MOOSE, ensure MOOSE has data avaiable for all FMU times (Optional)
+            # To-do: need MooseControl create a time object and a postprocessor backend,
+            # then we don't need users adding extra blocks in their input files
+            moose_dt = self.get_postprocessor_value("TIMESTEP_END", "dt", current_time)
+            next_time = current_time + step_size
+            self.logger.info(f"moose_dt={moose_dt:.6f} → current_time={current_time:.6f} → step_size={step_size:.6f} → end_time={self.end_time:.6f}")
+            if moose_dt > step_size and next_time <= self.end_time:
+                if self.set_controllable_real('Times/external_input/next_time', next_time):
+                    self.logger.info(f"Set the next time for MOOSE to hit as {next_time}")
+
 
         return True
 
