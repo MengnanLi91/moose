@@ -9,7 +9,7 @@
 [Times]
   [external_input]
     type = ControllableInputTimes
-    next_time = "0.1 0.2"
+    next_time = "0.2"
     execute_on = 'initial timestep_begin FINAL'
   []
 []

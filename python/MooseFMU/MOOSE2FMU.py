@@ -55,7 +55,7 @@ class Moose2FMU(Fmi2Slave):
         self.dt_tolerance: Real = dt_tolerance
         self.moose_time: Real = 0.0
         self.begin_time: Real = 0.0
-        self.end_time: Real = 0.0
+        self.end_time: Real = float("inf")
 
         # Find moose executable
         exec = shutil.which("moose-opt") or mooseutils.find_moose_executable_recursive()
@@ -95,8 +95,10 @@ class Moose2FMU(Fmi2Slave):
 
     def setup_experiment(self, start_time: float, stop_time: Optional[float], tolerance: Optional[float]):
         self.begin_time = start_time
-        if stop_time:
+        if stop_time is not None:
             self.end_time = stop_time
+        else:
+            self.end_time = float("inf")
         pass
 
     def do_step(
@@ -134,7 +136,7 @@ class Moose2FMU(Fmi2Slave):
             triggered the synchronization (if any).
         """
 
-        parsed_allowed_flags = {"TIMESTEP_BEGIN"}
+        parsed_allowed_flags = {"INITIAL TIMESTEP_BEGIN"}
         if allowed_flags:
             parsed_allowed_flags |= self._parse_flags(allowed_flags)
 
@@ -163,10 +165,22 @@ class Moose2FMU(Fmi2Slave):
             # then we don't need users adding extra blocks in their input files
             moose_dt = self.control.getTimeStepSize()
             next_time = current_time + step_size
-            self.logger.info(f"moose_dt={moose_dt:.6f} → current_time={current_time:.6f} → moose_time={self.moose_time:.6f} → step_size={step_size:.6f}")
-            if moose_dt + moose_time > next_time and next_time <= self.end_time:
-                if self.set_controllable_vector('Times/external_input/next_time', next_time):
-                    self.logger.info(f"Set the next time for MOOSE to hit as {next_time}")
+            self.logger.info(
+                "moose_time=%.6f → current_time=%.6f → moose_dt=%.6f → step_size=%.6f",
+                moose_time,
+                current_time,
+                moose_dt,
+                step_size,
+            )
+
+            if (
+                moose_dt > step_size
+                and next_time <= self.end_time
+                and self._schedule_next_time(next_time)
+            ):
+                self.logger.info(
+                    "Set the next time for MOOSE to hit as %s", next_time
+                )
 
 
             if abs(moose_time - current_time) < self.dt_tolerance:
@@ -484,5 +498,32 @@ class Moose2FMU(Fmi2Slave):
                 self.moose_inputfile,
             ]
         return [self.moose_executable, "-i", self.moose_inputfile]
+
+    def _schedule_next_time(self, next_time: float) -> bool:
+        """Request MOOSE to insert an additional time point if needed.
+
+        Parameters
+        ----------
+        next_time
+            The time that MOOSE should be forced to hit before advancing further.
+
+        Returns
+        -------
+        bool
+            ``True`` when a new request was sent to MOOSE, ``False`` if it was
+            skipped because the same value was already applied.
+        """
+
+        path = "Times/external_input/next_time"
+        cached = self._controllable_real_cache.get(path)
+        if cached == next_time:
+            self.logger.debug(
+                "Skipping next-time scheduling; %s already requested", next_time
+            )
+            return False
+
+        self.control.setControllableReal(path, next_time)
+        self._controllable_real_cache[path] = next_time
+        return True
 
 
