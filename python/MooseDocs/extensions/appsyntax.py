@@ -182,6 +182,11 @@ class AppSyntaxExtension(command.CommandExtension):
 
         LOG.info("MOOSE application syntax complete [%s sec.]", time.time() - start)
 
+        with open("/Users/lim2/Research/LLM/moosenger-worktrees/improve-retrivial-mechanism/data/moose_object_markdown_lookup.txt", "w") as fid:
+            for node in moosetree.iterate(self._app_syntax):
+                fid.write(f"- {node.fullpath()}: {node.markdown}\n")
+                # - /Kernels/Diffusion: source/kernels/Diffusion.md
+
     def __initClassDatabase(self):
         """Initialize the class database for faster searching."""
 
