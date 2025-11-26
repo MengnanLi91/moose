@@ -53,6 +53,11 @@ libmesh_LIBS     := $(shell METHOD=$(METHOD) $(libmesh_config) --libs)
 libmesh_HOST     := $(shell METHOD=$(METHOD) $(libmesh_config) --host)
 libmesh_LDFLAGS  := $(shell METHOD=$(METHOD) $(libmesh_config) --ldflags)
 
+# In the event that we're using something like mpicxx, query it for
+# the underlying compiler (like mpicxx -show); otherwise, fallback to
+# whatever libmesh_CXX is
+libmesh_UNDERLYING_CXX := $(shell ($(libmesh_CXX) -show 2>/dev/null || echo "$(libmesh_CXX)") | awk '{print $$1}')
+
 # You can completely disable timing by setting MOOSE_NO_PERF_GRAPH in your environment
 ifneq (x$(MOOSE_NO_PERF_GRAPH), x)
   libmesh_CXXFLAGS += -DMOOSE_NO_PERF_GRAPH
@@ -127,26 +132,28 @@ all:
 
 unity_files:
 
+.SECONDEXPANSION:
+
 #
 # C++ rules
 #
-pcre%.$(obj-suffix) : pcre%.cc | $(prebuild)
+pcre%.$(obj-suffix) : pcre%.cc | $$(prebuild)
 	@echo "Compiling C++ (in "$(METHOD)" mode) "$<"..."
 	@$(libmesh_LIBTOOL) --tag=CXX $(LIBTOOLFLAGS) --mode=compile --quiet \
           $(libmesh_CXX) $(libmesh_CPPFLAGS) $(CXXFLAGS) $(libmesh_CXXFLAGS) $(ADDITIONAL_CPPFLAGS) $(app_INCLUDES) $(libmesh_INCLUDE) -w -DHAVE_CONFIG_H -MMD -MP -MF $@.d -MT $@ -c $< -o $@
 
-gtest%.$(no-method-obj-suffix) : gtest%.cc | $(prebuild)
+gtest%.$(no-method-obj-suffix) : gtest%.cc | $$(prebuild)
 	@echo "Compiling C++ "$<"..."
 	@$(libmesh_LIBTOOL) --tag=CXX $(LIBTOOLFLAGS) --mode=compile --quiet \
           $(libmesh_CXX) $(ADDITIONAL_CPPFLAGS) $(gtest_INCLUDE) $(CXXFLAGS) -w -MMD -MP -MF $@.d -MT $@ -c $< -o $@
 
-%.$(obj-suffix) : %.cc | $(prebuild)
+%.$(obj-suffix) : %.cc | $$(prebuild)
 	@echo "Compiling C++ (in "$(METHOD)" mode) "$<"..."
 	@$(libmesh_LIBTOOL) --tag=CXX $(LIBTOOLFLAGS) --mode=compile --quiet \
           $(libmesh_CXX) $(libmesh_CPPFLAGS) $(CXXFLAGS) $(libmesh_CXXFLAGS) $(ADDITIONAL_CPPFLAGS) $(app_INCLUDES) $(libmesh_INCLUDE) -DHAVE_CONFIG_H -MMD -MP -MF $@.d -MT $@ -c $< -o $@
 
 define CXX_RULE_TEMPLATE
-%$(1).$(obj-suffix) : %.C $(ADDITIONAL_SRC_DEPS) | $(prebuild)
+%$(1).$(obj-suffix) : %.C $(ADDITIONAL_SRC_DEPS) | $$(prebuild)
 ifeq ($(1),)
 	@echo "Compiling C++ (in "$$(METHOD)" mode) "$$<"..."
 else
@@ -158,7 +165,7 @@ endef
 # Instantiate Rules
 $(eval $(call CXX_RULE_TEMPLATE,))
 
-%.$(obj-suffix) : %.cpp | $(prebuild)
+%.$(obj-suffix) : %.cpp | $$(prebuild)
 	@echo "Compiling C++ (in "$(METHOD)" mode) "$<"..."
 	@$(libmesh_LIBTOOL) --tag=CXX $(LIBTOOLFLAGS) --mode=compile --quiet \
 	  $(libmesh_CXX) $(libmesh_CPPFLAGS) $(CXXFLAGS) $(libmesh_CXXFLAGS) $(ADDITIONAL_CPPFLAGS) $(app_INCLUDES) $(libmesh_INCLUDE) -MMD -MP -MF $@.d -MT $@ -c $< -o $@
@@ -179,12 +186,12 @@ $(eval $(call CXX_RULE_TEMPLATE,))
 # C rules
 #
 
-pcre%.$(obj-suffix) : pcre%.c | $(prebuild)
+pcre%.$(obj-suffix) : pcre%.c | $$(prebuild)
 	@echo "Compiling C (in "$(METHOD)" mode) "$<"..."
 	@$(libmesh_LIBTOOL) --tag=CC $(LIBTOOLFLAGS) --mode=compile --quiet \
           $(libmesh_CC) $(libmesh_CPPFLAGS) $(ADDITIONAL_CPPFLAGS) $(libmesh_CFLAGS) $(app_INCLUDES) $(libmesh_INCLUDE) -w -DHAVE_CONFIG_H -MMD -MP -MF $@.d -MT $@ -c $< -o $@
 
-%.$(obj-suffix) : %.c | $(prebuild)
+%.$(obj-suffix) : %.c | $$(prebuild)
 	@echo "Compiling C (in "$(METHOD)" mode) "$<"..."
 	@$(libmesh_LIBTOOL) --tag=CC $(LIBTOOLFLAGS) --mode=compile --quiet \
 	  $(libmesh_CC) $(libmesh_CPPFLAGS) $(ADDITIONAL_CPPFLAGS) $(libmesh_CFLAGS) $(app_INCLUDES) $(libmesh_INCLUDE) -MMD -MP -MF $@.d -MT $@ -c $< -o $@
@@ -216,6 +223,14 @@ PreProcessed_FFLAGS := $(libmesh_FFLAGS)
 #
 
 mpif90_command := $(libmesh_F90)
+
+#
+# Kokkos rules
+#
+
+ifeq ($(ENABLE_KOKKOS),true)
+  include $(MOOSE_DIR)/framework/kokkos.mk
+endif
 
 # If $(libmesh_f90) is an mpiXXX compiler script, use -show
 # to determine the base compiler
@@ -324,9 +339,9 @@ endif
 #
 PLUGIN_FLAGS := -shared -fPIC -Wl,-undefined,dynamic_lookup
 
-%-$(METHOD).plugin : %.C | $(prebuild)
+%-$(METHOD).plugin : %.C | $$(prebuild)
 	@$(libmesh_CXX) $(libmesh_CPPFLAGS) $(ADDITIONAL_CPPFLAGS) $(CXXFLAGS) $(libmesh_CXXFLAGS) $(PLUGIN_FLAGS) $(app_INCLUDES) $(libmesh_INCLUDE) $< -o $@
-%-$(METHOD).plugin : %.c | $(prebuild)
+%-$(METHOD).plugin : %.c | $$(prebuild)
 	@echo "Compiling C Plugin (in "$(METHOD)" mode) "$<"..."
 	@$(libmesh_CC) $(libmesh_CPPFLAGS) $(ADDITIONAL_CPPFLAGS) $(libmesh_CFLAGS) $(PLUGIN_FLAGS) $(app_INCLUDES) $(libmesh_INCLUDE) $< -o $@
 %-$(METHOD).plugin : %.f

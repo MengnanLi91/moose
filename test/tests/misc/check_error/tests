@@ -899,20 +899,11 @@
     # Check to see if a warning is produced when a function name could evaluate to a ParsedFunction
     type = 'RunApp'
     input = 'function_conflict.i'
-    expect_out = "Function name 'x' could evaluate as a ParsedFunction"
+    expect_out = "Function name 'x' can be interpreted as a parsed function expression. This can be problematic."
     allow_warnings = true
 
     requirement = 'The system shall report an error when the name of a function could be misinterpreted because it could also be evaluated (e.g. a function name of "x").'
     issues = '#8412'
-  []
-
-  [bad_number]
-    type = 'RunException'
-    input = 'bad_number.i'
-    expect_err = "invalid float syntax for parameter: BCs/right/value"
-
-    requirement = 'The system shall report an error when floating point input parameter types fail to parse as floating point numbers.'
-    issues = '#10310'
   []
 
   [coupling_field_into_scalar]

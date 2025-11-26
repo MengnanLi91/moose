@@ -25,58 +25,13 @@ P_out = 2.0e5 # Pa
   []
 []
 
-[AuxVariables]
-  [mdot]
-    block = subchannel
-  []
-  [SumWij]
-    block = subchannel
-  []
-  [P]
-    block = subchannel
-  []
-  [DP]
-    block = subchannel
-  []
-  [h]
-    block = subchannel
-  []
-  [T]
-    block = subchannel
-  []
-  [rho]
-    block = subchannel
-  []
-  [S]
-    block = subchannel
-  []
-  [w_perim]
-    block = subchannel
-  []
-  [mu]
-    block = subchannel
-  []
-  [q_prime]
-    block = subchannel
-  []
-  [displacement]
-    block = subchannel
-  []
-  [q_prime_duct]
-    block = duct
-  []
-  [Tduct]
-    block = duct
-  []
-[]
-
 [FluidProperties]
   [sodium]
     type = PBSodiumFluidProperties
   []
 []
 
-[Problem]
+[SubChannel]
   type = TriSubChannel1PhaseProblem
   fp = sodium
   n_blocks = 1
@@ -87,6 +42,18 @@ P_out = 2.0e5 # Pa
   compute_power = true
   implicit = true
   segregated = true
+  verbose_subchannel = true
+
+  # Heat Transfer Correlations
+  duct_htc_correlation = 'gnielinski'
+  # friction model
+  friction_closure = 'cheng'
+[]
+
+[SCMClosures]
+  [cheng]
+    type = SCMFrictionUpdatedChengTodreas
+  []
 []
 
 [ICs]
@@ -111,6 +78,12 @@ P_out = 2.0e5 # Pa
     type = ConstantIC
     variable = T
     value = ${T_in}
+  []
+
+  [duct_heat_flux_ic]
+    type = ConstantIC
+    variable = duct_heat_flux #W/m2
+    value = 1000.0
   []
 
   [P_ic]
@@ -248,17 +221,23 @@ P_out = 2.0e5 # Pa
     variable = T
     height = 2
   []
-  [Total_power]
-    type = ElementIntegralVariablePostprocessor
-    variable = q_prime
-    block = subchannel
-  []
   [mdot-8]
     type = SubChannelPointValue
     variable = mdot
     index = 28
     execute_on = 'TIMESTEP_END'
     height = 0.5
+  []
+  [Total_power]
+    type = ElementIntegralVariablePostprocessor
+    variable = q_prime
+    block = subchannel
+  []
+  [Total_power_SCMDuctPowerPostprocessor]
+    type = SCMDuctHeatRatePostprocessor
+  []
+  [Total_power_SCMTHPowerPostprocessor]
+    type = SCMTHPowerPostprocessor
   []
 []
 

@@ -215,19 +215,11 @@ std::vector<dof_id_type>
 MooseVariableBase::componentDofIndices(const std::vector<dof_id_type> & dof_indices,
                                        unsigned int component) const
 {
-  std::vector<dof_id_type> new_dof_indices(dof_indices);
-  if (component != 0)
-  {
-    if (isNodal())
-      for (auto & id : new_dof_indices)
-        id += component;
-    else
-    {
-      unsigned int n = dof_indices.size();
-      for (auto & id : new_dof_indices)
-        id += component * n;
-    }
-  }
+  mooseAssert(dof_indices.size() % this->count() == 0,
+              "The dof indices container must be a multiple of count");
+  std::vector<dof_id_type> new_dof_indices(dof_indices.size() / this->count());
+  for (const auto i : index_range(new_dof_indices))
+    new_dof_indices[i] = dof_indices[component * new_dof_indices.size() + i];
   return new_dof_indices;
 }
 
@@ -252,4 +244,15 @@ MooseVariableBase::initialSetup()
                                                        }) != _scaling_factor.end())))
 
     _sys.addScalingVector();
+}
+
+const NumericVector<Number> &
+MooseVariableBase::getSolution(const Moose::StateArg & state) const
+{
+  // It's not safe to use solutionState(0) because it returns the libMesh System solution member
+  // which is wrong during things like finite difference Jacobian evaluation, e.g. when PETSc
+  // perturbs the solution vector we feed these perturbations into the current_local_solution
+  // while the libMesh solution is frozen in the non-perturbed state
+  return (state.state == 0) ? *this->_sys.currentSolution()
+                            : this->_sys.solutionState(state.state, state.iteration_type);
 }

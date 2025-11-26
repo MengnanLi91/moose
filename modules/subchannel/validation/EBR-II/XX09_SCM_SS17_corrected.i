@@ -103,6 +103,9 @@ unheated_length_exit = '${fparse 26.9*scale_factor}'
   [displacement]
     block = subchannel
   []
+  [ff]
+    block = subchannel
+  []
   [q_prime]
     block = fuel_pins
   []
@@ -112,7 +115,7 @@ unheated_length_exit = '${fparse 26.9*scale_factor}'
   [Dpin]
     block = fuel_pins
   []
-  [q_prime_duct]
+  [duct_heat_flux]
     block = duct
   []
   [Tduct]
@@ -141,6 +144,18 @@ unheated_length_exit = '${fparse 26.9*scale_factor}'
   segregated = false
   interpolation_scheme = 'upwind'
   verbose_subchannel = true
+
+  # Heat Transfer Correlations
+  pin_htc_correlation = 'gnielinski'
+  duct_htc_correlation = 'gnielinski'
+  # friction model
+  friction_closure = 'cheng'
+[]
+
+[SCMClosures]
+  [cheng]
+    type = SCMFrictionUpdatedChengTodreas
+  []
 []
 
 [ICs]
