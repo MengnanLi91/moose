@@ -7,6 +7,7 @@
 # Licensed under LGPL 2.1, please see LICENSE for details
 # https://www.gnu.org/licenses/lgpl-2.1.html
 
+import contextlib
 import logging
 import os
 import shutil
@@ -71,9 +72,7 @@ def moose_fmu_step_by_step(
     time_tol: float | None = None,  # None -> auto dt/2
     step_csv: str = "run_fmu_step_by_step.csv",
 ):
-    """
-    Manual FMI 2.0 run + comparison with baseline CSV produced by simulate_moose_fmu().
-    """
+    """Manual FMI 2.0 run + comparison with baseline CSV produced by simulate_moose_fmu()."""
     if time_tol is None:
         time_tol = 1e-15
 
@@ -137,14 +136,10 @@ def moose_fmu_step_by_step(
 
     finally:
         # Cleanup
-        try:
+        with contextlib.suppress(Exception):
             fmu.terminate()
-        except Exception:
-            pass
-        try:
+        with contextlib.suppress(Exception):
             fmu.freeInstance()
-        except Exception:
-            pass
         shutil.rmtree(unzipdir, ignore_errors=True)
 
 
@@ -159,9 +154,7 @@ def moose_fmu_time(
     time_tol: float | None = None,
     step_csv: str = "run_fmu_time.csv",
 ):
-    """
-    Manual FMI 2.0 run for testing fmu moose time sync.
-    """
+    """Manual FMI 2.0 run for testing fmu moose time sync."""
     if time_tol is None:
         time_tol = 1e-15
 
@@ -216,14 +209,10 @@ def moose_fmu_time(
 
     finally:
         # Cleanup
-        try:
+        with contextlib.suppress(Exception):
             fmu.terminate()
-        except Exception:
-            pass
-        try:
+        with contextlib.suppress(Exception):
             fmu.freeInstance()
-        except Exception:
-            pass
         shutil.rmtree(unzipdir, ignore_errors=True)
 
 
