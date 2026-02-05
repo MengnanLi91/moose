@@ -17,7 +17,6 @@ from fmpy import extract, instantiate_fmu, read_model_description
 from fmpy.simulation import apply_start_values
 from moosefmu import set_real
 
-
 def moose_fmu_step_by_step(
     moose_filename: str,
     t0: float,
@@ -33,7 +32,7 @@ def moose_fmu_step_by_step(
 ):
     """Manual FMI 2.0 run + comparison with baseline CSV produced by simulate_moose_fmu()."""
     if time_tol is None:
-        time_tol = 1e-15
+        time_tol = 1e-12
 
     moose_model = extract(moose_filename)
     md = read_model_description(moose_model)
@@ -64,22 +63,27 @@ def moose_fmu_step_by_step(
         # --- Step loop ---
         rows = []
         t = t0
-        while t <= t1:
-            fmu.doStep(currentCommunicationPoint=t, communicationStepSize=dt)
+        while t < t1 - time_tol:
+            step_size = min(dt, t1 - t)
+            fmu.doStep(currentCommunicationPoint=t, communicationStepSize=step_size)
 
             moose_time = fmu.getReal([vrs["moose_time"]])[0]
-
+################# This is an example how to set MOOSE input with MOOSE FMU dome rss model ######
             if t <= 1000:
                 set_real(fmu, vrs, "mfr_in", 0.5)
-                print("set mfr_in to 0.5")
+                mfr_in_now = fmu.getReal([vrs["mfr_in"]])[0]
+                print("mfr_in (FMU) =", mfr_in_now)
+################################################################################################
 
+################# This is an example how to get MOOSE output with MOOSE FMU dome rss model #####
             air_heatrate = fmu.getReal([vrs["air_heatrate"]])[0]
+################################################################################################
             print(
                 f"fmu_time={t:.3f} -> moose_time={moose_time:.6f} -> air_heatrate={air_heatrate:.6f}"
             )
             rows.append((t, moose_time, air_heatrate))
 
-            t = min(t + dt, t1 + time_tol)
+            t += step_size
 
         result = np.array(
             rows,
@@ -109,7 +113,21 @@ def moose_fmu_step_by_step(
 
 if __name__ == "__main__":
 
-    # Toggle this flag to switch between INFO and DEBUG logging for the script and FMU
+# DOME RSS Inputs:
+# - mfr_in
+# - mfr_out
+# - T_in
+# - T_out
+# - T_air
+# - reactor_power
+#
+# DOME RSS Outputs:
+# - air_heatrate; positive value is heat loss from shield
+#
+# Water inlet/outlet heat rates are calculated as follows:
+#   Q = mfr * cp * (T - T_ref)
+# where T_ref is taken to be 0. Better would be:
+#   Q = mfr * h(T)
 
     t0, t1, dt = 0, 6000, 2000
     moose_filename = "DomeTest.fmu"
@@ -119,10 +137,10 @@ if __name__ == "__main__":
         moose_filename, t0, t1, dt, flag, cmd)
 
     fmu_time = result["time"]
-    dt = result["moose_time"]
+    moose_time = result["moose_time"]
     air_heatrate = result["air_heatrate"]
 
-    for ti, di, diff, rep in zip(fmu_time, dt, air_heatrate):
+    for ti, di, air_heatrate in zip(fmu_time, moose_time, air_heatrate):
         print(
-            f"fmu_time={ti:.1f} -> moose_time={di:.5f} -> air_heatrate={diff:.5f}"
+            f"fmu_time={ti:.1f} -> moose_time={di:.5f} -> air_heatrate={air_heatrate:.5f}"
         )
